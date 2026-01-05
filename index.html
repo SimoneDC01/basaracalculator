@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mythic Planner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-bottom: 90px; background-color: #f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .hero-card { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; border: 1px solid #dee2e6; font-size: 0.85rem; height: 100%; position: relative; }
+        .hero-card:active { transform: scale(0.96); }
+        .hero-card.owned { background-color: #d1e7dd; border-color: #a3cfbb; color: #0f5132; }
+        .hero-card.maxed { background-color: #198754; border-color: #146c43; color: white; } 
+        .hero-card.shop { background-color: #fff3cd; border-color: #ffecb5; color: #856404; }
+        .hero-card.shop.owned { background-color: #ffe69c; border-color: #ffc107; } 
+        .hero-card.shop.maxed { background-color: #ffc107; border-color: #d39e00; color: #000; } 
+        .hero-card.shop::after { content: "SHOP"; position: absolute; top: 2px; right: 4px; font-size: 0.6em; opacity: 0.6; font-weight: bold; }
+        .count-badge { position: absolute; top: -8px; right: -8px; background-color: #6c757d; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10; }
+        .count-badge.max { background-color: #ffc107; color: #000; border: 1px solid #daa520; }
+        .myth-card { margin-bottom: 12px; border-left: 6px solid #adb5bd; background: white; }
+        .myth-card.close { border-left-color: #fd7e14; } 
+        .myth-card.very-close { border-left-color: #198754; } 
+        .myth-card.done { border-left-color: #0d6efd; opacity: 0.7; } 
+        .nav-bottom { position: fixed; bottom: 0; width: 100%; background: white; border-top: 1px solid #dee2e6; z-index: 1050; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
+        .result-card { font-size: 0.8rem; border-left: 4px solid transparent; display: flex; flex-direction: column; justify-content: space-between; }
+        .result-card.safe { border-left-color: #198754; background-color: #e8f5e9; }
+        .result-card.risky { border-left-color: #ffc107; background-color: #fff3cd; }
+        .search-sticky { position: sticky; top: 0; z-index: 1020; background: #f0f2f5; padding-top: 10px; padding-bottom: 10px; }
+        .myth-slot-badge { font-size: 0.7em; margin-left: 5px; padding: 2px 5px; vertical-align: middle; }
+    </style>
+</head>
+<body>
+
+<div class="container pt-3">
+    <h4 class="text-center fw-bold mb-4 text-primary">⚡ Mythic Planner</h4>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="advisor" role="tabpanel">
+            <div class="card p-3 shadow-sm border-0">
+                <h5 class="card-title text-primary">🧙‍♂️ Advisor</h5>
+                <div class="row g-2 mb-3">
+                    <div class="col-4"><input type="radio" class="btn-check" name="slot" id="s1" value="1"><label class="btn btn-outline-secondary w-100" for="s1">Slot 1</label></div>
+                    <div class="col-4"><input type="radio" class="btn-check" name="slot" id="s2" value="2"><label class="btn btn-outline-secondary w-100" for="s2">Slot 2</label></div>
+                    <div class="col-4"><input type="radio" class="btn-check" name="slot" id="s3" value="3"><label class="btn btn-outline-secondary w-100" for="s3">Slot 3</label></div>
+                </div>
+                <button class="btn btn-primary w-100 fw-bold" onclick="adviseMe()">ANALIZZA</button>
+                <div id="advisorResults" class="mt-3"></div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="myths" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h5>Miti</h5><span class="badge bg-secondary" id="mythCount">0</span></div>
+            <div id="mythList"></div>
+        </div>
+
+        <div class="tab-pane fade" id="inventory" role="tabpanel">
+            <div class="search-sticky">
+                <input type="text" class="form-control" id="searchHero" placeholder="Cerca eroe..." onkeyup="renderInventory()">
+            </div>
+            <ul class="nav nav-pills nav-fill mb-2 small">
+                <li class="nav-item"><a class="nav-link active" href="#" onclick="filterInventory('pull', this)">Pullabili</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="filterInventory('shop', this)">Shop</a></li>
+            </ul>
+            <div id="heroList" class="row g-2"></div>
+        </div>
+
+        <div class="tab-pane fade" id="settings" role="tabpanel">
+            <h5>⚙️ Gestione Dati</h5>
+            <p class="small text-muted">Usa questi strumenti per spostare i salvataggi tra PC e Telefono.</p>
+            <div class="card p-3 mb-3 shadow-sm border-0">
+                <h6>Esporta</h6>
+                <button class="btn btn-outline-primary btn-sm mb-2" onclick="exportData()">Genera Codice Backup</button>
+                <textarea id="io-area" class="form-control form-control-sm" rows="3" placeholder="Il codice apparirà qui..."></textarea>
+            </div>
+            <div class="card p-3 shadow-sm border-0 text-danger">
+                <h6>Importa</h6>
+                <p class="extra-small" style="font-size:0.7rem">Incolla un codice e clicca importa. Sovrascriverà i dati attuali!</p>
+                <button class="btn btn-danger btn-sm" onclick="importData()">Importa Dati</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="nav-bottom p-2">
+    <div class="d-flex justify-content-around">
+        <button class="btn btn-link text-decoration-none text-dark d-flex flex-column align-items-center" onclick="switchTab('advisor')"><span>🔮</span><span class="small">Advisor</span></button>
+        <button class="btn btn-link text-decoration-none text-dark d-flex flex-column align-items-center" onclick="switchTab('myths')"><span>🏆</span><span class="small">Miti</span></button>
+        <button class="btn btn-link text-decoration-none text-dark d-flex flex-column align-items-center" onclick="switchTab('inventory')"><span>🎒</span><span class="small">Eroi</span></button>
+        <button class="btn btn-link text-decoration-none text-dark d-flex flex-column align-items-center" onclick="switchTab('settings')"><span>⚙️</span><span class="small">Dati</span></button>
+    </div>
+</div>
+
+<script>
+    // --- DATABASE E LOGICA (INVARIATI RISPETTO A PRIMA) ---
+    const h = (name, variety, source, constellation, slot, size) => ({ id: (name + variety).toLowerCase().replace(/\s/g, ''), name, variety, source, constellation, slot, size });
+    let heroesDB = [
+        h('Alpha', 'Viola', 'pull', 'MANUS', 1, 3), h('Terry', 'Grigio', 'pull', 'MANUS', 2, 3), h('Samguk', 'Grigio', 'pull', 'MANUS', 3, 3),
+        h('Torch', 'Viola', 'pull', 'ALIENOR', 1, 3), h('Janus', 'Grigio', 'pull', 'ALIENOR', 2, 3), h('Xene', 'Grigio', 'pull', 'ALIENOR', 3, 3),
+        h('Fei', 'Viola', 'pull', 'ROTEUS', 1, 3), h('JP', 'Grigio', 'pull', 'ROTEUS', 2, 3), h('Ruger', 'Rosso', 'pull', 'ROTEUS', 3, 3),
+        h('Caleb', 'Viola', 'pull', 'PINGUINIO', 1, 3), h('Bellatrix', 'Grigio', 'pull', 'PINGUINIO', 2, 3), h('King', 'Rosso', 'pull', 'PINGUINIO', 3, 3),
+        h('Nathan', 'Grigio', 'pull', 'ALLENIA', 1, 3), h('Gandares', 'Grigio', 'pull', 'ALLENIA', 2, 3), h('Mark', 'Grigio', 'pull', 'ALLENIA', 3, 3),
+        h('Byron', 'Viola', 'pull', 'INAZUMIS', 1, 3), h('Falco', 'Rosso', 'pull', 'INAZUMIS', 2, 3), h('Austin', 'Rosso', 'pull', 'INAZUMIS', 3, 3),
+        h('Arculus', 'Viola', 'pull', 'FERRIATOS', 1, 3), h('Jude', 'Grigio', 'pull', 'FERRIATOS', 2, 3), h('Quentin', 'Rosso', 'pull', 'FERRIATOS', 3, 3),
+        h('Briar', 'Viola', 'pull', 'VICTORIA', 1, 2), h('Harper', 'Rosso', 'pull', 'VICTORIA', 2, 2),
+        h('Erik', 'Viola', 'pull', 'VECTUS', 1, 2), h('Byron', 'Rosso', 'pull', 'VECTUS', 2, 2),
+        h('Axel', 'Viola', 'pull', 'CICLON', 1, 3), h('Gazelle', 'Viola', 'pull', 'CICLON', 2, 3), h('Victor', 'Rosso', 'pull', 'CICLON', 3, 3),
+        h('Ozrock', 'Viola', 'pull', 'UFOARA', 1, 3), h('Alpha', 'Grigio', 'pull', 'UFOARA', 2, 3), h('Janus', 'Rosso', 'pull', 'UFOARA', 3, 3),
+        h('Circulus', 'Grigio', 'pull', 'CARAVANIO', 1, 3), h('Gabi', 'Grigio', 'pull', 'CARAVANIO', 2, 3), h('Shawn', 'Rosso', 'pull', 'CARAVANIO', 3, 3),
+        h('Tezcat', 'Viola', 'pull', 'AMICIRA', 1, 3), h('Briar', 'Grigio', 'pull', 'AMICIRA', 2, 3), h('JP', 'Rosso', 'pull', 'AMICIRA', 3, 3),
+        h('Dvalin', 'Viola', 'pull', 'AUDIUS', 1, 3), h('Rondula', 'Viola', 'pull', 'AUDIUS', 2, 3), h('Riccardo', 'Grigio', 'pull', 'AUDIUS', 3, 3),
+        h('Terry', 'Viola', 'pull', 'GENII', 1, 3), h('Lancer', 'Viola', 'pull', 'GENII', 2, 3), h('Darren', 'Rosso', 'pull', 'GENII', 3, 3),
+        h('Samguk', 'Viola', 'pull', 'POLPETTRIS', 1, 3), h('Buddy', 'Viola', 'pull', 'POLPETTRIS', 2, 3), h('Jack', 'Grigio', 'pull', 'POLPETTRIS', 3, 3),
+        h('Gamma', 'Grigio', 'pull', 'DRACONIS', 1, 3), h('Bailong', 'Rosso', 'pull', 'DRACONIS', 2, 3), h('Rondula', 'Rosso', 'pull', 'DRACONIS', 3, 3),
+        h('Jack', 'Viola', 'pull', 'DIAMANTIS', 1, 3), h('Mark', 'Viola', 'pull', 'DIAMANTIS', 2, 3), h('Torch', 'Rosso', 'pull', 'DIAMANTIS', 3, 3),
+        h('Austin', 'Viola', 'pull', 'TACCUS', 1, 3), h('Axel', 'Grigio', 'pull', 'TACCUS', 2, 3), h('Arion', 'Grigio', 'pull', 'TACCUS', 3, 3),
+        h('Paolo', 'Grigio', 'pull', 'FORTUNES', 1, 3), h('Hurley', 'Grigio', 'pull', 'FORTUNES', 2, 3), h('Simeon', 'Rosso', 'pull', 'FORTUNES', 3, 3),
+        h('Zanark', 'Viola', 'pull', 'TROFEUS', 1, 3), h('Hector', 'Grigio', 'pull', 'TROFEUS', 2, 3), h('Paolo', 'Rosso', 'pull', 'TROFEUS', 3, 3),
+        h('Ruger', 'Viola', 'pull', 'METEORIS', 1, 3), h('Victor', 'Grigio', 'pull', 'METEORIS', 2, 3), h('Xene', 'Rosso', 'pull', 'METEORIS', 3, 3),
+        h('Arion', 'Viola', 'pull', 'FERRIONE', 1, 3), h('Falco', 'Viola', 'pull', 'FERRIONE', 2, 3), h('Archer', 'Viola', 'pull', 'FERRIONE', 3, 3),
+        h('Erik', 'Grigio', 'pull', 'OCULAR', 1, 2), h('Hurley', 'Rosso', 'pull', 'OCULAR', 2, 2),
+        h('Beta', 'Viola', 'pull', 'ODEN', 1, 3), h('Gabi', 'Viola', 'pull', 'ODEN', 2, 3), h('Plink', 'Rosso', 'pull', 'ODEN', 3, 3),
+        h('Quentin', 'Viola', 'pull', 'IUDEX', 1, 3), h('Gazelle', 'Grigio', 'pull', 'IUDEX', 2, 3), h('Gamma', 'Rosso', 'pull', 'IUDEX', 3, 3),
+        h('Goldie', 'Grigio', 'pull', 'SAURUS', 1, 3), h('Fei', 'Grigio', 'pull', 'SAURUS', 2, 3), h('Gandares', 'Rosso', 'pull', 'SAURUS', 3, 3),
+        h('Beta', 'Rosso', 'pull', 'STUDENS', 1, 3), h('Buddy', 'Rosso', 'pull', 'STUDENS', 2, 3), h('Nathan', 'Rosso', 'pull', 'STUDENS', 3, 3),
+        h('Plink', 'Grigio', 'pull', 'AUSILIS', 1, 3), h('Tezcat', 'Grigio', 'pull', 'AUSILIS', 2, 3), h('Goldie', 'Rosso', 'pull', 'AUSILIS', 3, 3),
+        h('Darren', 'Viola', 'pull', 'RAMENARA', 1, 2), h('Archer', 'Rosso', 'pull', 'RAMENARA', 2, 2),
+        h('Shawn', 'Grigio', 'shop', null, null, null), h('Lancer', 'Rosso', 'shop', null, null, null), h('Bailong', 'Viola', 'shop', null, null, null),
+        h('Zanark', 'Rosso', 'shop', null, null, null), h('King', 'Viola', 'shop', null, null, null), h('Simeon', 'Viola', 'shop', null, null, null),
+        h('Caleb', 'Rosso', 'shop', null, null, null), h('Hector', 'Viola', 'shop', null, null, null), h('Dvalin', 'Rosso', 'shop', null, null, null),
+        h('Harper', 'Viola', 'shop', null, null, null), h('Ozrock', 'Rosso', 'shop', null, null, null), h('Arculus', 'Grigio', 'shop', null, null, null),
+        h('Circulus', 'Rosso', 'shop', null, null, null), h('Bellatrix', 'Rosso', 'shop', null, null, null)
+    ];
+
+    const rawMyths = [
+        { name: "AXEL", reqs: ["Axel grigio", "Axel viola", "Gazelle viola", "Circulus rosso"] }, { name: "SHAWN", reqs: ["Shawn grigio", "Shawn rosso", "Simeon Viola", "Gandares rosso"] }, { name: "XENE", reqs: ["Xene grigio", "Xene rosso", "Gamma rosso", "Beta rosso"] }, { name: "PAOLO", reqs: ["Paolo rosso", "Paolo grigio", "Falco rosso", "Bailong viola"] }, { name: "LANCER", reqs: ["Lancer rosso", "Lancer viola", "Briar grigio", "Axel grigio"] }, { name: "VICTOR", reqs: ["Victor rosso", "Victor grigio", "Harper rosso", "Lancer rosso"] }, { name: "BAILONG", reqs: ["Bailong viola", "Bailong Rosso", "Victor grigio", "Falco viola"] }, { name: "TEZCAT", reqs: ["Tezcat viola", "Tezcat grigio", "Circulus grigio", "Alpha grigio"] }, { name: "FEI", reqs: ["Fei grigio", "Fei viola", "Tezcat grigio", "Xene rosso"] }, { name: "ALPHA", reqs: ["Alpha viola", "Alpha grigio", "Ruger viola", "Austin rosso"] }, { name: "BETA", reqs: ["Beta rosso", "Beta viola", "Fei grigio", "Paolo rosso"] }, { name: "GAMMA", reqs: ["Gamma rosso", "Gamma grigio", "Gazelle grigio", "Zanark rosso"] }, { name: "ZANARK", reqs: ["Zanark rosso", "Zanark viola", "Simeon rosso", "Torch viola"] }, { name: "SIMEON", reqs: ["Simeon viola", "Simeon rosso", "Paolo grigio", "Lancer viola"] }, { name: "HARPER", reqs: ["Harper viola", "Harper rosso", "Ozrock rosso", "Arculus viola"] }, { name: "BRIAR", reqs: ["Briar viola", "Briar grigio ", "Tezcat viola", "Torch rosso"] }, { name: "ARION", reqs: ["Arion grigio", "Arion viola", "Erik grigio", "Jude grigio"] }, { name: "JUDE", reqs: ["Jude grigio", "Jude rosso", "Riccardo rosso", "Rondula rosso"] }, { name: "ERIK", reqs: ["Erik grigio", "Erik viola", "Byron rosso", "Plink rosso"] }, { name: "BYRON", reqs: ["Byron viola", "Byron rosso", "Rondula rosso", "Arion viola"] }, { name: "CALEB", reqs: ["Caleb rosso", "Caleb viola", "Janus grigio", "Arion grigio"] }, { name: "JANUS", reqs: ["Janus grigio", "Janus rosso", "Riccardo grigio", "Erik viola"] }, { name: "RICCARDO", reqs: ["Riccardo grigio", "Riccardo rosso", "Bellatrix grigio", "Janus rosso"] }, { name: "JACK", reqs: ["Jack grigio", "Jack viola", "Archer viola", "Gabi grigio"] }, { name: "NATHAN", reqs: ["Nathan grigio", "Nathan rosso", "Gabi viola", "Archer rosso"] }, { name: "ARCHER", reqs: ["Archer viola", "Archer rosso", "Hurley grigio", "Jack grigio"] }, { name: "GOLDIE", reqs: ["Goldie rosso", "Goldie grigio", "Jack viola", "Hurley rosso"] }, { name: "GABI", reqs: ["Gabi grigio", "Gabi viola", "Goldie grigio", "Nathan rosso"] }, { name: "MARK", reqs: ["Mark grigio", "Mark viola", "JP grigio", "Terry grigio"] }, { name: "DARREN", reqs: ["Darren viola", "Darren rosso", "Mark viola", "JP rosso"] }, { name: "DVALIN", reqs: ["Dvalin rosso", "Dvalin viola", "Darren viola", "Samguk viola"] }, { name: "HECTOR", reqs: ["Hector viola", "Hector grigio", "Dvalin rosso", "Terry viola"] }, { name: "SAMGUK", reqs: ["Samguk viola", "Samguk grigio", "Quentin viola", "King rosso"] }, { name: "QUENTIN", reqs: ["Quentin viola", "Quentin rosso", "King viola", "Darren rosso"] }, { name: "JP", reqs: ["JP grigio", "JP rosso", "Hector viola", "Samguk grigio"] }, { name: "AUSTIN", reqs: ["Austin viola", "Austin rosso", "Alpha viola", "Beta viola"] }, { name: "HURLEY", reqs: ["Hurley rosso", "Hurley grigio", "Nathan grigio", "Goldie rosso"] }, { name: "KING", reqs: ["King viola", "King rosso", "Hector grigio", "Quentin rosso"] }, { name: "FALCO", reqs: ["Falco viola", "Falco rosso", "Axel viola", "Shawn grigio"] }, { name: "OZROCK", reqs: ["Ozrock rosso", "Ozrock viola", "Austin viola", "Xene grigio"] }, { name: "ARCULUS", reqs: ["Arculus grigio", "Arculus viola", "Bailong rosso", "Zanark viola"] }, { name: "CIRCULUS", reqs: ["Circulus rosso", "Circulus grigio", "Shawn rosso", "Arculus grigio"] }, { name: "TORCH", reqs: ["Torch viola", "Torch rosso", "Victor rosso", "Gandares grigio"] }, { name: "GAZELLE", reqs: ["Gazelle viola", "Gazelle grigio", "Fei viola", "Ruger rosso"] }, { name: "RUGER", reqs: ["Ruger viola", "Ruger rosso", "Ozrock viola", "Gamma grigio"] }, { name: "GANDARES", reqs: ["Gandares grigio", "Gandares rosso", "Harper viola", "Briar viola"] }, { name: "BELLATRIX", reqs: ["Bellatrix rosso", "Bellatrix grigio", "Buddy viola", "Byron viola"] }, { name: "TERRY", reqs: ["Terry grigio", "Terry viola", "Dvalin viola", "Mark grigio"] }, { name: "BUDDY", reqs: ["Buddy viola", "Buddy rosso", "Caleb rosso", "Plink grigio"] }, { name: "PLINK", reqs: ["Plink rosso", "Plink grigio", "Bellatrix rosso", "Caleb viola"] }, { name: "RONDULA", reqs: ["Rondula rosso", "Rondula viola", "Buddy rosso", "Jude rosso"] }
+    ];
+
+    const mythicsDB = rawMyths.map(m => {
+        const mythName = m.name.charAt(0).toUpperCase() + m.name.slice(1).toLowerCase();
+        const reqs = [];
+        reqs.push({ name: mythName, variety: null, type: 'generic' });
+        m.reqs.forEach(rStr => {
+            const parts = rStr.trim().split(" ");
+            const rName = parts[0];
+            const rVar = parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase();
+            reqs.push({ name: rName, variety: rVar, type: 'specific', count: 2 });
+            const exists = heroesDB.some(h => h.name === rName && h.variety === rVar);
+            if (!exists) heroesDB.push(h(rName, rVar, 'pull', 'Sconosciuta', null, null));
+        });
+        return { name: "Mito " + mythName, reqs: reqs };
+    });
+
+    let inventory = JSON.parse(localStorage.getItem('myGameInventory')) || {};
+    let inventoryFilter = 'pull';
+
+    function saveInventory() { localStorage.setItem('myGameInventory', JSON.stringify(inventory)); renderMyths(); }
+    
+    function toggleHero(heroId) {
+        let current = inventory[heroId] || 0;
+        current++; if (current > 3) current = 0;
+        if (current === 0) delete inventory[heroId]; else inventory[heroId] = current;
+        saveInventory(); renderInventory();
+    }
+
+    function filterInventory(type, el) {
+        inventoryFilter = type;
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        el.classList.add('active');
+        renderInventory();
+    }
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('show', 'active'));
+        const target = document.getElementById(tabId);
+        if (target) target.classList.add('show', 'active');
+        if (tabId === 'myths') renderMyths();
+    }
+
+    function calculateMissingForMyth(myth) {
+        let tempInventory = { ...inventory }; 
+        let missingPull = 0, missingShop = 0;
+        let missingDetails = [], reqsStatus = [];
+        const specificReqs = myth.reqs.filter(r => r.type === 'specific');
+        const genericReqs = myth.reqs.filter(r => r.type === 'generic');
+
+        specificReqs.forEach(req => {
+            let h = heroesDB.find(x => x.name === req.name && x.variety === req.variety);
+            if (!h) return;
+            let owned = tempInventory[h.id] || 0, needed = req.count;
+            let statusObj = { name: req.name, variety: req.variety, type: 'specific', count: 2, slot: h.slot, size: h.size, isShop: (h.source === 'shop') };
+            if (owned >= needed) { tempInventory[h.id] -= needed; statusObj.ok = true; statusObj.owned = needed; } else {
+                let diff = needed - owned;
+                if (h.source === 'shop') missingShop += diff; else { missingPull += diff; missingDetails.push(h); }
+                tempInventory[h.id] = 0; statusObj.ok = false; statusObj.owned = owned;
+            }
+            statusObj.needed = needed; reqsStatus.push(statusObj);
+        });
+
+        genericReqs.forEach(req => {
+            const allVersions = heroesDB.filter(h => h.name === req.name);
+            let totalRemaining = 0, shopVersionExists = false;
+            allVersions.forEach(h => { if (h.source === 'shop') shopVersionExists = true; totalRemaining += (tempInventory[h.id] || 0); });
+            let statusObj = { name: req.name, variety: null, type: 'generic' };
+            if (totalRemaining >= 1) { statusObj.ok = true; } else {
+                if (shopVersionExists) { missingShop += 1; statusObj.isShop = true; } else {
+                    missingPull += 1; const pullable = allVersions.find(h => h.source === 'pull');
+                    if (pullable) missingDetails.push(pullable);
+                }
+                statusObj.ok = false;
+            }
+            reqsStatus.push(statusObj);
+        });
+        return { countPull: missingPull, countShop: missingShop, details: missingDetails, reqStatus: reqsStatus };
+    }
+
+    function adviseMe() {
+        const slotRadio = document.querySelector('input[name="slot"]:checked');
+        if (!slotRadio) { alert("Seleziona uno slot!"); return; }
+        const pullSlot = parseInt(slotRadio.value);
+        const resultsDiv = document.getElementById('advisorResults');
+        resultsDiv.innerHTML = '';
+        const mythsStatus = mythicsDB.map(m => { const data = calculateMissingForMyth(m); return { ...m, missingPull: data.countPull, missingShop: data.countShop, missingHeroes: data.details }; }).sort((a, b) => a.missingPull !== b.missingPull ? a.missingPull - b.missingPull : a.missingShop - b.missingShop);
+        let safeSuggestions = [], riskySuggestions = [];
+
+        mythsStatus.forEach(myth => {
+            if (myth.missingPull === 0) return;
+            myth.missingHeroes.forEach(targetHero => {
+                if ((inventory[targetHero.id] || 0) >= 3) return;
+                if (!targetHero.constellation || targetHero.constellation === 'Sconosciuta') return;
+                let probability = null, reason = '';
+                if (targetHero.size === 2) { probability = '50%'; reason = 'Costellazione 2'; }
+                else if (targetHero.size === 3) {
+                    const constHeroes = heroesDB.filter(h => h.constellation === targetHero.constellation);
+                    const entryHero = constHeroes.find(h => h.slot === pullSlot);
+                    if (entryHero) {
+                        if (entryHero.id === targetHero.id) { probability = '100%'; } else {
+                            if ((inventory[entryHero.id] || 0) >= 3) {
+                                const third = constHeroes.find(h => h.id !== entryHero.id && h.id !== targetHero.id);
+                                if ((inventory[third.id] || 0) >= 3) { probability = '100%'; reason = `Doppio blocco`; }
+                                else { probability = '50%'; reason = `S${pullSlot} bloccato`; }
+                            }
+                        }
+                    }
+                }
+                if (probability) {
+                    let item = { hero: targetHero, mythName: myth.name, missingPull: myth.missingPull, missingShop: myth.missingShop, reason: reason };
+                    let list = (probability === '100%') ? safeSuggestions : riskySuggestions;
+                    if (!list.some(s => s.hero.id === item.hero.id && s.mythName === item.mythName)) list.push(item);
+                }
+            });
+        });
+
+        const renderList = (list, type) => {
+            if (list.length === 0) return '<div class="text-muted small text-center">- Nessuno -</div>';
+            return list.slice(0, 12).map(s => `
+                <div class="card p-2 result-card ${type === 'SAFE' ? 'safe' : 'risky'} shadow-sm h-100">
+                    <div><div class="fw-bold text-dark text-truncate">${s.hero.name} ${s.hero.variety}</div>
+                    <div class="text-muted text-truncate" style="font-size:0.75em">per ${s.mythName} (-${s.missingPull}${s.missingShop > 0 ? ' + 🛒'+s.missingShop : ''})</div></div>
+                    <div class="d-flex justify-content-between align-items-end mt-2"><div style="font-size:0.7em">${s.reason ? '<span class="text-danger fw-bold">'+s.reason+'</span>' : ''}</div>
+                    <span class="badge bg-white text-dark border ms-1">${s.hero.constellation}</span></div>
+                </div>`).join('');
+        };
+
+        resultsDiv.innerHTML = `<div class="row g-2"><div class="col-6 border-end text-center"><h6 class="text-success fw-bold border-bottom pb-2">✅ SICURI</h6><div class="d-flex flex-column gap-2 text-start">${renderList(safeSuggestions, 'SAFE')}</div></div>
+            <div class="col-6 text-center"><h6 class="text-warning fw-bold border-bottom pb-2">⚠️ RISCHIO</h6><div class="d-flex flex-column gap-2 text-start">${renderList(riskySuggestions, 'RISKY')}</div></div></div>`;
+    }
+
+    function renderInventory() {
+        const container = document.getElementById('heroList'), search = document.getElementById('searchHero').value.toLowerCase();
+        container.innerHTML = '';
+        heroesDB.filter(h => h.source === inventoryFilter).forEach(h => {
+            if (search && !h.name.toLowerCase().includes(search) && !h.variety.toLowerCase().includes(search)) return;
+            const count = inventory[h.id] || 0;
+            const cardClass = h.source === 'shop' ? (count >= 3 ? 'shop maxed' : (count > 0 ? 'shop owned' : 'shop')) : (count >= 3 ? 'maxed' : (count > 0 ? 'owned' : ''));
+            container.innerHTML += `<div class="col-4 col-sm-3"><div class="card p-2 hero-card ${cardClass}" onclick="toggleHero('${h.id}')">${count > 0 ? `<div class="count-badge ${count >= 3 ? 'max' : ''}">x${count}</div>` : ''}
+                <div class="fw-bold text-truncate">${h.name} ${h.slot ? `<span class="badge bg-secondary badge-slot">S${h.slot}</span>` : ''}</div>
+                <div class="text-truncate" style="font-size:0.75em">${h.variety}</div>${h.constellation ? `<span class="constellation-tag text-truncate">${h.constellation}</span>` : ''}</div></div>`;
+        });
+    }
+
+    function renderMyths() {
+        const container = document.getElementById('mythList');
+        const status = mythicsDB.map(m => ({ ...m, data: calculateMissingForMyth(m) })).sort((a, b) => a.data.countPull !== b.data.countPull ? a.data.countPull - b.data.countPull : a.data.countShop - b.data.countShop);
+        document.getElementById('mythCount').innerText = status.length; container.innerHTML = '';
+        status.forEach(m => {
+            const pull = m.data.countPull, shop = m.data.countShop;
+            let badgeClass = (pull === 0 && shop === 0) ? 'bg-success' : (pull === 0 ? 'bg-info text-dark' : (pull <= 2 ? 'bg-success' : 'bg-warning text-dark'));
+            let listHtml = m.data.reqStatus.map(r => {
+                let icon = r.ok ? '✅' : (r.isShop ? '🛒' : '❌'), style = r.ok ? 'text-decoration-line-through text-muted' : 'fw-bold';
+                let slotBadge = r.slot ? `<span class="badge ${r.size === 2 ? 'bg-dark' : 'bg-secondary'} myth-slot-badge">S${r.slot}${r.size === 2 ? ' (2)' : ''}</span>` : '';
+                return `<li><span class="${style}">${icon} ${r.name} ${r.variety || '(Qualsiasi)'}${slotBadge} <small>(${r.owned || 0}/${r.needed || 1})</small></span></li>`;
+            }).join('');
+            container.innerHTML += `<div class="card p-2 myth-card ${pull+shop === 0 ? 'done' : (pull <= 2 ? 'very-close' : 'close')} shadow-sm">
+                <div class="d-flex justify-content-between align-items-center" data-bs-toggle="collapse" data-bs-target="#c-${m.name.replace(/\s/g,'')}" style="cursor:pointer"><span class="fw-bold">${m.name}</span><span class="badge ${badgeClass} rounded-pill">Mancano: ${pull}${shop > 0 ? ' + 🛒'+shop : ''}</span></div>
+                <div class="collapse mt-2" id="c-${m.name.replace(/\s/g,'')}"><ul class="list-unstyled mb-0 small ps-1 border-top pt-2">${listHtml}</ul></div></div>`;
+        });
+    }
+
+    function exportData() {
+        const code = btoa(JSON.stringify(inventory));
+        document.getElementById('io-area').value = code;
+        alert("Codice generato! Copialo e salvalo.");
+    }
+    function importData() {
+        const code = document.getElementById('io-area').value;
+        if (!code) return;
+        try {
+            const data = JSON.parse(atob(code));
+            inventory = data; saveInventory(); renderInventory();
+            alert("Dati importati con successo!");
+        } catch(e) { alert("Codice non valido!"); }
+    }
+
+    renderInventory(); renderMyths();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
